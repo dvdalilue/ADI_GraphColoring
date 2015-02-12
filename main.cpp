@@ -8,6 +8,7 @@
 #include <iterator>
 #include <math.h>
 #include <algorithm>
+#include <set>
 
 using namespace std;
 
@@ -59,31 +60,7 @@ private:
     std::vector<int> adyacentes;
 };
 
-void imprimirGrafo(Node g[], int n)
-{
-    int i = 0;
-
-    while (i < n) {
-        if (g[i].getV() != -1)
-        {
-            cout << (g[i].getV()) << " -- ";
-            while (!g[i].empty()) {
-                cout << g[i].pop() << ", ";
-            }
-        }
-        cout << "\n";
-        i++;
-    }
-}
-
-void printvector(vector<int> li) {
-    vector<int>::iterator i;
-    for( i = li.begin(); i != li.end(); ++i)
-        cout << *i << " ";
-    cout << endl;
-}
-
-int getWGraph(Node g[], int n, int *delta, int *p)
+int getWGraph(Node g[], int n, int *p)
 {
     int i = 0,
         d = 0,
@@ -93,32 +70,28 @@ int getWGraph(Node g[], int n, int *delta, int *p)
 
     while (i < n)
     {
-        if (g[i].getV() != -1) {
-            d = g[i].size();
-            m = max(d, m);
-            if (m == d) *p = i;
-            d = n - d;
-            r += (1.0/((double) d));
-        } else {
-            m = max(0, m);
-            r += (1.0/((double) n));
-        }
+        d = g[i].size();
+        m = max(d, m);
+        if (m == d) *p = i;
+        d = n - d;
+        r += (1.0/((double) d));
         i++;
     }
-
-    *delta = m;
 
     return int(r);
 }
 
 int getLowestV(Node g[], int r[], int p)
 {
+    // Funcion que obtiene el menor color posible.
+    // El cual no posea ninguno de sus adyacentes de X_p.
+
     Node aux = g[p];
     std::vector<int> colors, ady;
 
     int i = 0,
         j = 0,
-        k;
+        k = 0;
 
     ady = aux.ady();
 
@@ -128,11 +101,10 @@ int getLowestV(Node g[], int r[], int p)
 
     std::sort(colors.begin(), colors.end());
 
-    k = colors.size();
-
     if (!colors.empty()) {
         j = colors.back();
         colors.pop_back();
+        k = j;
     }
     
     while (!colors.empty())
@@ -151,41 +123,98 @@ bool allColored(int r[], int n)
     int i = 0;
 
     while (i < n)
-    {
-        if (r[i] == 0) return false;
-        i++;
-    }
+        if (r[i++] == 0) return false;
     return true;
 }
 
-void graphColoring(Node g[], int n, int w, int d, int p)
+int brelaz(Node g[], int n, int w, int q, int r[])
 {
     bool back = false;
     int k = w + 1,
-        u = 0,
+        uk = 0,
+        i = 0,
+        j = 0;
+
+    int nResult[n];
+
+    std::set<int> colorsAvl[n];
+    std::set<int>::iterator it;
+
+    if (w == q) return q;
+
+    for (i = 0; i < k; i++) nResult[i] = i + 1;
+
+    for (i = k; i < n; i++) nResult[i] = 0;
+
+    // u_k    = numero de colores usados en la actual
+    //          solucion parcial de nivel k-1.
+
+    // U(x_k) = conjunto de colores {1..min(u_k+1, q-1)}
+    //          que no han sido usados en la actual solucion
+    //          parcial de nivel k-1. Para un vecino de x_k.
+
+    // c      = color actual de x_k, 
+
+    while (true)
+    {
+        if (back) { nResult[k] = 0; }
+
+        uk = getLowestV(g, nResult, k);
+
+        if (uk <= q)
+        {
+            nResult[k] = uk;
+            k++;
+            if (k == n)
+            {
+                i = 0;
+                while (i < n) { j = max(j, nResult[i++]); }
+                return j;
+            } else {
+                back = false;
+            }
+        } else {
+            k--;
+            back = true;
+        }
+
+        if (back) {
+            //label(x_k)
+            if (k <= w) break;
+        }
+    }
+    return q;
+}
+
+void graphColoring(Node g[], int n, int w, int p)
+{
+    int u = 0,
         i = 0,
         l = 0;
 
     int result[n],
         dsat[n];
-    
-    bool colorDisp[n];
 
     Node aux;
+
+    // Inicializacion de variables.
 
     for (u = 0; u < n; u++) {
         result[u] = 0;
         dsat[u] = 0;
-        colorDisp[u] = true;
     }
+
+    ////////////////////////////////
+    //                            //
+    //  Calculo de cota superior  //
+    //          (DSATUR)          //
+    ////////////////////////////////
 
     result[p] = 1;
 
     aux = g[p];
 
     while(!aux.empty()) { i = aux.pop(); dsat[i] = 1; }
-
-    // Aumnetar el DSAT de los vertices adyacentes.
 
     while (!allColored(result, n))
     {
@@ -206,35 +235,23 @@ void graphColoring(Node g[], int n, int w, int d, int p)
         while(!aux.empty()) { u = aux.pop(); dsat[u] += 1; }
 
         result[l] = getLowestV(g, result, l);
-        //cout << result[l] << "\n";
 
     }
 
     i = 0;
     u = 0;
 
-    while (i < n)
-    { 
-        u = max(u,result[i++]);
-    }
+    while (i < n) u = max(u,result[i++]);
 
-    cout << "X^(G): " << u;
+    // Fin de DSATUR. "u" posee la cota superior.
 
-    // u_k    = numero de colores usados en la actual
-    //          solucion parcial de nivel k-1.
+    cout << "w(G): " << w << ", ";
 
-    // U(x_k) = conjunto de colores {1..min(u_k+1, q-1)}
-    //          que no han sido usados en la actual solucion
-    //          parcial de nivel k-1. Para un vecino de x_k.
+    cout << "CS: " << u << ", ";
 
-    // c      = color actual de x_k, 
+    u = brelaz(g, n, w, u, result);
 
-    // while true
-    // {
-    //     if !back {
-
-    //     }
-    // }
+    cout << "X^(G): " << u << "\n";
 }
 
 int main(int argc, char const *argv[])
@@ -251,6 +268,12 @@ int main(int argc, char const *argv[])
         edges = 0,
         w     = 0,
         delta = 0;
+
+    ///////////////////////////
+    //                       //
+    //  LECTURA DEL ARCHIVO  //
+    //                       //
+    ///////////////////////////
 
     file.open(argv[1]);
 
@@ -274,18 +297,14 @@ int main(int argc, char const *argv[])
         if ((*i != "p") || (*i != "edge"))
         {
             istringstream buffer(*i);
-            if (nodes == 0) buffer >> nodes;   
-            else buffer >> edges;
+            if (nodes == 0) buffer >> nodes;
         }
     }
 
     Node graph[nodes];
     nd = Node(-1);
 
-    for (i = 0; i < nodes; i++)
-    {
-        graph[i] = nd;
-    }
+    for (i = 0; i < nodes; i++) graph[i] = nd;
 
     while (getline (file, line))
     {
@@ -315,10 +334,15 @@ int main(int argc, char const *argv[])
 
     file.close();
 
-    w = getWGraph(graph, nodes, &delta, &i);// w = Cota inerior, delta = cota superior.
+    //////////////////////////////////
+    //                              //
+    //  FIN DE LECTURA DEL ARCHIVO  //
+    //                              //
+    //////////////////////////////////
 
-    graphColoring(graph, nodes, w, delta + 1, i);
-    // imprimirGrafo(graph, nodes);
+    w = getWGraph(graph, nodes, &i);// w = Cota inerior
+
+    graphColoring(graph, nodes, w, i);
     
     return 0;
 }
